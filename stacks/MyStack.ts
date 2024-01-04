@@ -1,4 +1,4 @@
-import { StackContext, Api, EventBus, StaticSite } from 'sst/constructs';
+import { StackContext, Api, EventBus, Table, Function } from 'sst/constructs';
 
 export function API({ stack }: StackContext) {
     const bus = new EventBus(stack, 'bus', {
@@ -7,6 +7,17 @@ export function API({ stack }: StackContext) {
         },
     });
 
+    //SST-Dynamodb Table
+    const todoTable = new Table(stack, 'todoTable', {
+        fields: {
+            id: 'string',
+            title: 'string',
+            description: 'string',
+        },
+        primaryIndex: { partitionKey: 'id' },
+    });
+
+    // SST API
     const api = new Api(stack, 'api', {
         defaults: {
             function: {
@@ -14,6 +25,7 @@ export function API({ stack }: StackContext) {
             },
         },
     });
+
     // add hello route
     api.addRoutes(stack, {
         'GET /': {
@@ -24,16 +36,41 @@ export function API({ stack }: StackContext) {
         },
     });
 
+    // add todo routes
+
     api.addRoutes(stack, {
-        'GET /todo': {
+        ['GET /todo']: {
             function: {
                 runtime: 'go',
                 handler: 'backend/cmd/handlers/todo/list/list.go',
+                permissions: [todoTable],
+            },
+        },
+        ['GET /todo/{id}']: {
+            function: {
+                runtime: 'go',
+                handler: 'backend/cmd/handlers/todo/find/find.go',
+                permissions: [todoTable],
+            },
+        },
+        ['POST /todo']: {
+            function: {
+                runtime: 'go',
+                handler: 'backend/cmd/handlers/todo/create/create.go',
+                permissions: [todoTable],
+            },
+        },
+        ['DELETE /todo/{id}']: {
+            function: {
+                runtime: 'go',
+                handler: 'backend/cmd/handlers/todo/delete/delete.go',
+                permissions: [todoTable],
             },
         },
     });
 
     stack.addOutputs({
         ApiEndpoint: api.url,
+        DynamoDBTable: todoTable.tableName,
     });
 }
